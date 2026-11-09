@@ -1,0 +1,28 @@
+# 7. Complete 4-bit ALU in H1L
+DEVICE ALU4
+    INPUT A[4], B[4]
+    INPUT OP[3]
+    INPUT CLK
+    OUTPUT RES[4]
+    OUTPUT ZERO, NEG
+
+    WIRE ARITH[4]
+    WIRE LOGIC[4]
+    WIRE SELECTED[4]
+
+    # Arithmetic: OP[0]=0 -> A+B, OP[0]=1 -> A-B
+    ASSIGN ARITH = (OP[0] == 0) ? (A + B) : (A - B)
+
+    # Logic: OP[1:0]: 00->AND, 01->OR, 10->XOR, 11->NOT
+    ASSIGN LOGIC = (OP[0] == 0) ? (A & B) : (A | B)
+
+    # Multiplex arithmetic vs logic based on OP[2]
+    ASSIGN SELECTED = (OP[2] == 0) ? ARITH : LOGIC
+
+    # Register output
+    REGISTER RES[4] <= SELECTED CLOCK CLK
+
+    # Status flags
+    ASSIGN ZERO = (RES == 0) ? 1 : 0
+    ASSIGN NEG  = RES[3]
+END

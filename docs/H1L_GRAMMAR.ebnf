@@ -1,0 +1,97 @@
+(* =============================================================================
+   H1L (Hardware 1 Language) - Formal EBNF Grammar Specification
+   FPGA-H1 Virtual Lab
+   ============================================================================= *)
+
+DeviceDefinition     ::= "DEVICE" Identifier ( TopItem )* "END" ;
+
+ModuleDefinition     ::= "MODULE" Identifier ( ModuleItem )* "END" ;
+
+TopItem              ::= ModuleDefinition
+                       | PortDeclaration
+                       | WireDeclaration
+                       | ClockDeclaration
+                       | ResetDeclaration
+                       | RegisterDeclaration
+                       | AssignStatement
+                       | LutInstantiation
+                       | InstanceStatement
+                       | ConnectStatement ;
+
+ModuleItem           ::= PortDeclaration
+                       | WireDeclaration
+                       | ClockDeclaration
+                       | ResetDeclaration
+                       | RegisterDeclaration
+                       | AssignStatement
+                       | LutInstantiation
+                       | InstanceStatement
+                       | ConnectStatement ;
+
+(* Declarations *)
+PortDeclaration      ::= ( "INPUT" | "OUTPUT" | "INOUT" ) SignalDefList ;
+WireDeclaration      ::= "WIRE" SignalDefList ;
+ClockDeclaration     ::= "CLOCK" IdentifierList ;
+ResetDeclaration     ::= "RESET" IdentifierList ;
+
+SignalDefList        ::= SignalDef ( "," SignalDef )* ;
+SignalDef            ::= Identifier ( "[" ( Range | Integer ) "]" )? ;
+Range                ::= Integer ":" Integer ;
+IdentifierList       ::= Identifier ( "," Identifier )* ;
+
+(* Sequential Registers *)
+RegisterDeclaration  ::= "REGISTER" SignalDef "<=" Expression 
+                         ( "CLOCK" Identifier )? 
+                         ( "ENABLE" Expression )? 
+                         ( "RESET" Identifier )? ;
+
+(* Combinational Assignments *)
+AssignStatement      ::= "ASSIGN" SignalRef "=" Expression ;
+
+(* Direct Hardware LUT Primitive *)
+LutInstantiation     ::= "LUT" Identifier "(" SignalRef "," SignalRef "," SignalRef "," SignalRef ")" "=" HexLiteral ;
+
+(* Module Instantiation *)
+InstanceStatement    ::= "INSTANCE" Identifier "OF" Identifier "(" ( PortMappingList )? ")" ;
+PortMappingList      ::= PortMapping ( "," PortMapping )* ;
+PortMapping          ::= Identifier "=>" Expression ;
+
+(* Explicit Wire Connection *)
+ConnectStatement     ::= "CONNECT" SignalRef "TO" SignalRef ;
+
+(* Expressions *)
+Expression           ::= ConditionalExpr ;
+
+ConditionalExpr      ::= LogicalOrExpr ( "?" Expression ":" Expression )? ;
+
+LogicalOrExpr        ::= LogicalXorExpr ( "|" LogicalXorExpr )* ;
+
+LogicalXorExpr       ::= LogicalAndExpr ( "^" LogicalAndExpr )* ;
+
+LogicalAndExpr       ::= EqualityExpr ( "&" EqualityExpr )* ;
+
+EqualityExpr         ::= RelationalExpr ( ( "==" | "!=" ) RelationalExpr )* ;
+
+RelationalExpr       ::= AdditiveExpr ( ( "<" | "<=" | ">" | ">=" ) AdditiveExpr )* ;
+
+AdditiveExpr         ::= MultiplicativeExpr ( ( "+" | "-" ) MultiplicativeExpr )* ;
+
+MultiplicativeExpr   ::= UnaryExpr ( "*" UnaryExpr )* ;
+
+UnaryExpr            ::= ( "~" | "!" | "-" | "+" )? PrimaryExpr ;
+
+PrimaryExpr          ::= SignalRef
+                       | Constant
+                       | "(" Expression ")"
+                       | Concatenation ;
+
+Concatenation        ::= "{" Expression ( "," Expression )* "}" ;
+
+SignalRef            ::= Identifier ( "." Identifier )? ( "[" ( Range | Expression ) "]" )? ;
+
+(* Lexical Terminals *)
+Constant             ::= HexLiteral | BinLiteral | Integer ;
+HexLiteral           ::= "0x" [0-9a-fA-F]+ ;
+BinLiteral           ::= "0b" [01]+ ;
+Integer              ::= [0-9]+ ;
+Identifier           ::= [a-zA-Z_][a-zA-Z0-9_]* ;

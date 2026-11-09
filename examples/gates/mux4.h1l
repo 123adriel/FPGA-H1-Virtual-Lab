@@ -1,0 +1,8 @@
+# 2. 4-to-1 Multiplexer in H1L
+DEVICE MUX4
+    INPUT D0, D1, D2, D3
+    INPUT S0, S1
+    OUTPUT Y
+
+    ASSIGN Y = (S1 == 0) ? ((S0 == 0) ? D0 : D1) : ((S0 == 0) ? D2 : D3)
+END

@@ -1,0 +1,20 @@
+# 10. 3-Stage Arithmetic Pipeline in H1L
+# Stage 1: Operand Registration
+# Stage 2: Multiply/Add Execution
+# Stage 3: Result Registration
+DEVICE PIPELINE3
+    INPUT CLK, RST
+    INPUT IN_A[4], IN_B[4]
+    OUTPUT OUT_Y[4]
+
+    # Stage 1 Registers
+    REGISTER REG_A[4] <= (RST == 1) ? 0 : IN_A CLOCK CLK
+    REGISTER REG_B[4] <= (RST == 1) ? 0 : IN_B CLOCK CLK
+
+    # Stage 2 Combinational Logic
+    WIRE STAGE2_RESULT[4]
+    ASSIGN STAGE2_RESULT = REG_A + REG_B
+
+    # Stage 3 Output Register
+    REGISTER OUT_Y[4] <= (RST == 1) ? 0 : STAGE2_RESULT CLOCK CLK
+END

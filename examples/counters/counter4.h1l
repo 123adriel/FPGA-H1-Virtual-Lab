@@ -1,0 +1,7 @@
+# 3. 4-bit Synchronous Counter in H1L
+DEVICE COUNTER4
+    INPUT CLK, RST, EN
+    OUTPUT Q[4]
+
+    REGISTER Q[4] <= (RST == 1) ? 0 : ((EN == 1) ? (Q + 1) : Q) CLOCK CLK
+END

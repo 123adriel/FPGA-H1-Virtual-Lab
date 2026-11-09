@@ -1,0 +1,7 @@
+# 4. 8-bit Synchronous Counter in H1L
+DEVICE COUNTER8
+    INPUT CLK, RST, EN
+    OUTPUT Q[8]
+
+    REGISTER Q[8] <= (RST == 1) ? 0 : ((EN == 1) ? (Q + 1) : Q) CLOCK CLK
+END

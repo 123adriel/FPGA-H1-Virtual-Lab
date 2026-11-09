@@ -1,0 +1,10 @@
+# 1. Logic Gates in H1L
+DEVICE LOGIC_GATES
+    INPUT A, B
+    OUTPUT Y_AND, Y_OR, Y_XOR, Y_NOT
+
+    ASSIGN Y_AND = A & B
+    ASSIGN Y_OR  = A | B
+    ASSIGN Y_XOR = A ^ B
+    ASSIGN Y_NOT = ~A
+END

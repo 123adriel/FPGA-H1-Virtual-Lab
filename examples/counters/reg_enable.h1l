@@ -1,0 +1,7 @@
+# 5. Register with Clock Enable in H1L
+DEVICE REG_ENABLE
+    INPUT CLK, CE, D
+    OUTPUT Q
+
+    REGISTER Q <= D CLOCK CLK ENABLE CE
+END

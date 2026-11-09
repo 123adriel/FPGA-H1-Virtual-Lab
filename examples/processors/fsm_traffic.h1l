@@ -1,0 +1,20 @@
+# 9. Finite State Machine (Traffic Light Controller) in H1L
+# States: 00 = RED, 01 = GREEN, 10 = YELLOW
+DEVICE FSM_TRAFFIC
+    INPUT CLK, RST, SENSOR
+    OUTPUT STATE[2]
+    OUTPUT LIGHT_RED, LIGHT_GREEN, LIGHT_YELLOW
+
+    WIRE NEXT_STATE[2]
+
+    # State transition logic
+    ASSIGN NEXT_STATE = (STATE == 0) ? ((SENSOR == 1) ? 1 : 0) :
+                        (STATE == 1) ? 2 : 0
+
+    REGISTER STATE[2] <= (RST == 1) ? 0 : NEXT_STATE CLOCK CLK
+
+    # Output decoding
+    ASSIGN LIGHT_RED    = (STATE == 0) ? 1 : 0
+    ASSIGN LIGHT_GREEN  = (STATE == 1) ? 1 : 0
+    ASSIGN LIGHT_YELLOW = (STATE == 2) ? 1 : 0
+END

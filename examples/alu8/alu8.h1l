@@ -1,0 +1,20 @@
+# 8. Complete 8-bit ALU in H1L
+DEVICE ALU8
+    INPUT A[8], B[8]
+    INPUT OP[3]
+    INPUT CLK
+    OUTPUT RES[8]
+    OUTPUT ZERO
+
+    WIRE SELECTED[8]
+
+    ASSIGN SELECTED = (OP == 0) ? (A + B) :
+                      (OP == 1) ? (A - B) :
+                      (OP == 2) ? (A & B) :
+                      (OP == 3) ? (A | B) :
+                      (OP == 4) ? (A ^ B) : ~A
+
+    REGISTER RES[8] <= SELECTED CLOCK CLK
+
+    ASSIGN ZERO = (RES == 0) ? 1 : 0
+END
