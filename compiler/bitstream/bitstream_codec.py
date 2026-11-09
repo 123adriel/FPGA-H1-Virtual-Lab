@@ -1,6 +1,7 @@
 """
 Bitstream Codec - FPGA-H1 Virtual Lab
 Encodes and decodes the official H1BS binary bitstream with CRC32 integrity check.
+Full support for LUTs, DFFs, Wilton Switch Boxes, and Connection Boxes.
 """
 
 import struct
@@ -39,16 +40,11 @@ class BitstreamCodec:
         num_luts: int,
         ble_configs: List[Dict[str, Any]],
         metadata: Optional[Dict[str, Any]] = None,
-        sb_configs: Optional[List[Dict[str, Any]]] = None
+        sb_configs: Optional[List[Dict[str, Any]]] = None,
+        cb_configs: Optional[List[Dict[str, Any]]] = None
     ) -> bytes:
         """
         Generates binary bitstream bytes.
-        
-        ble_configs format:
-        [
-            {"id": 0, "mask": 0x8888, "bypass_ff": True, "carry_enable": False, "invert_clk": False},
-            ...
-        ]
         """
         arch_id = ARCH_FAMILY_MAP.get(num_luts, 0x0000)
         meta_dict = metadata or {"project": "FPGA-H1", "device_luts": num_luts}
@@ -85,20 +81,30 @@ class BitstreamCodec:
             body.extend(frame_header)
             body.extend(payload)
 
-        # 3. Frames: Switch Box configurations if present
+        # 3. Frames: Switch Box configurations if present (8 bytes uint64 for up to 64 switches)
         if sb_configs:
             for sb in sb_configs:
                 sb_id = sb.get("id", 0)
-                matrix_mask = sb.get("mask", 0) & 0xFFFFFFFF
-                payload = struct.pack("<I", matrix_mask)
+                mask = sb.get("mask", 0)
+                payload = struct.pack("<Q", mask & 0xFFFFFFFFFFFFFFFF)
                 frame_header = struct.pack(">HBB", sb_id, FRAME_SWITCH_BOX, len(payload))
                 body.extend(frame_header)
                 body.extend(payload)
 
-        # 4. End-of-Stream frame
+        # 4. Frames: Connection Box configurations if present (8 bytes uint64)
+        if cb_configs:
+            for cb in cb_configs:
+                cb_id = cb.get("id", 0)
+                mask = cb.get("mask", 0)
+                payload = struct.pack("<Q", mask & 0xFFFFFFFFFFFFFFFF)
+                frame_header = struct.pack(">HBB", cb_id, FRAME_CONN_BOX, len(payload))
+                body.extend(frame_header)
+                body.extend(payload)
+
+        # 5. End-of-Stream frame
         body.extend(struct.pack(">HBB", 0xFFFF, FRAME_END_OF_STREAM, 0))
 
-        # 5. Calculate CRC32 across all bytes up to this point
+        # 6. Calculate CRC32 across all bytes up to this point
         crc = zlib.crc32(body) & 0xFFFFFFFF
         body.extend(struct.pack("<I", crc))
 
@@ -135,6 +141,7 @@ class BitstreamCodec:
 
         bles = []
         switch_boxes = []
+        connection_boxes = []
 
         # Parse frames
         while offset < len(data_without_crc):
@@ -159,10 +166,18 @@ class BitstreamCodec:
                     "invert_clk": bool((flag_byte >> 2) & 1)
                 })
             elif frame_type == FRAME_SWITCH_BOX:
-                matrix_mask = struct.unpack("<I", payload)[0]
+                matrix_mask = struct.unpack("<Q", payload)[0] if len(payload) == 8 else struct.unpack("<I", payload)[0]
                 switch_boxes.append({
                     "id": target_id,
-                    "mask": matrix_mask
+                    "mask": matrix_mask,
+                    "mask_hex": hex(matrix_mask)
+                })
+            elif frame_type == FRAME_CONN_BOX:
+                matrix_mask = struct.unpack("<Q", payload)[0] if len(payload) == 8 else struct.unpack("<I", payload)[0]
+                connection_boxes.append({
+                    "id": target_id,
+                    "mask": matrix_mask,
+                    "mask_hex": hex(matrix_mask)
                 })
 
         return {
@@ -172,6 +187,7 @@ class BitstreamCodec:
             "metadata": metadata,
             "bles": bles,
             "switch_boxes": switch_boxes,
+            "connection_boxes": connection_boxes,
             "crc32": f"0x{stored_crc:08X}",
             "byte_count": len(data)
         }
