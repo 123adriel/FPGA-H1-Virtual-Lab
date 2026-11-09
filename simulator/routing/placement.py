@@ -123,6 +123,15 @@ class PlacementEngine:
         total_swaps = 0
 
         all_cells = [(x, y) for x in range(self.grid_w) for y in range(self.grid_h)]
+        if len(all_cells) < 2:
+            return {
+                "initial_hpwl": current_hpwl,
+                "final_hpwl": current_hpwl,
+                "swaps_attempted": 0,
+                "swaps_accepted": 0,
+                "time_sec": 0.0,
+                "utilization_pct": 100.0 * len(self.clbs) / self.capacity
+            }
 
         for step in range(max_moves):
             # Pick two distinct cells at random

@@ -55,22 +55,28 @@ class PathfinderRouter:
         existing_net_nodes: Set[int]
     ) -> Optional[List[int]]:
         """
-        Dijkstra shortest path search from any node in source_nodes to target_node_id.
+        A* directed shortest path search from any node in source_nodes to target_node_id.
+        Uses an admissible Manhattan distance heuristic to guide search directly towards the sink.
         Allows path reuse: traversing nodes already in existing_net_nodes incurs zero incremental cost.
         """
-        # Priority queue entries: (cost, current_node_id, path_list)
+        target_node = self.graph.nodes[target_node_id]
+        tx, ty = target_node.x, target_node.y
+
+        # Priority queue entries: (f_score, current_node_id)
         pq: List[Tuple[float, int]] = []
-        best_cost: Dict[int, float] = {}
+        g_score: Dict[int, float] = {}
         prev: Dict[int, int] = {}
 
         for src in source_nodes:
-            best_cost[src] = 0.0
-            heapq.heappush(pq, (0.0, src))
+            g_score[src] = 0.0
+            src_node = self.graph.nodes[src]
+            h = 0.5 * (abs(src_node.x - tx) + abs(src_node.y - ty))
+            heapq.heappush(pq, (h, src))
 
         visited: Set[int] = set()
 
         while pq:
-            cost, u = heapq.heappop(pq)
+            f, u = heapq.heappop(pq)
             if u in visited:
                 continue
             visited.add(u)
@@ -87,19 +93,21 @@ class PathfinderRouter:
                 return path
 
             u_node = self.graph.nodes[u]
+            u_g = g_score[u]
+
             for v, edge_cost in u_node.edges.items():
                 v_node = self.graph.nodes[v]
-                # If v is already part of the net's tree, its cost is 0 (path sharing)
                 if v in existing_net_nodes:
                     node_cost = 0.0
                 else:
                     node_cost = v_node.get_cost(pres_fac)
 
-                new_cost = cost + edge_cost + node_cost
-                if v not in best_cost or new_cost < best_cost[v]:
-                    best_cost[v] = new_cost
+                tentative_g = u_g + edge_cost + node_cost
+                if v not in g_score or tentative_g < g_score[v]:
+                    g_score[v] = tentative_g
                     prev[v] = u
-                    heapq.heappush(pq, (new_cost, v))
+                    h = 0.5 * (abs(v_node.x - tx) + abs(v_node.y - ty))
+                    heapq.heappush(pq, (tentative_g + h, v))
 
         return None  # Unreachable
 

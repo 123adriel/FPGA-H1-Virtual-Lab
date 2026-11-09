@@ -24,8 +24,18 @@ from simulator.routing.pathfinder import PathfinderRouter, Net
 from simulator.routing.placement import PlacementEngine
 
 
-def get_process_memory_mb() -> float:
-    return psutil.Process(os.getpid()).memory_info().rss / (1024 * 1024)
+try:
+    import psutil
+    def get_process_memory_mb() -> float:
+        return psutil.Process(os.getpid()).memory_info().rss / (1024 * 1024)
+except ImportError:
+    try:
+        import resource
+        def get_process_memory_mb() -> float:
+            return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
+    except ImportError:
+        def get_process_memory_mb() -> float:
+            return 0.0
 
 
 def run_benchmark_scale(
@@ -59,7 +69,10 @@ def run_benchmark_scale(
         num_sinks = 1 if random.random() < 0.75 else 2
         sink_ids = []
         for _ in range(num_sinks):
-            target_id = (src_id + random.randint(1, min(5, clb_count - 1))) % clb_count
+            if clb_count <= 1:
+                target_id = 0
+            else:
+                target_id = (src_id + random.randint(1, min(5, clb_count - 1))) % clb_count
             sink_ids.append(target_id)
         
         placer.add_net(f"NET_{nid}", [f"CLB_{src_id}"] + [f"CLB_{sid}" for sid in sink_ids])
@@ -142,36 +155,37 @@ def main():
 
     results = []
     for b in benchmarks:
-        print(f"\n---> Benchmarking {b['luts']} LUT4 ({b['w']}x{b['h']} CLBs, Channel W={b['W']})...")
+        print(f"\n---> Benchmarking {b['luts']} LUT4 ({b['w']}x{b['h']} CLBs, Channel W={b['W']})...", flush=True)
         try:
+            max_iter = 5 if b["luts"] >= 4096 else 20
             res = run_benchmark_scale(
                 num_luts=b["luts"],
                 grid_w=b["w"],
                 grid_h=b["h"],
                 channel_width=b["W"],
-                max_routing_iter=25
+                max_routing_iter=max_iter
             )
             results.append(res)
-            print(f"     [STATUS] {'SUCCESS' if res['success'] else 'UNROUTED/CONGESTED'}")
-            print(f"     Placement Time: {res['placement_time_sec']:.3f}s | Routing Time: {res['routing_time_sec']:.3f}s")
-            print(f"     Iterations: {res['iterations']} | Routed: {res['routed_pct']:.1f}% | RR Nodes: {res['rr_nodes']:,}")
-            print(f"     Memory: {res['mem_peak_mb']:.1f} MB (Delta: +{res['mem_delta_mb']:.1f} MB)")
+            print(f"     [STATUS] {'SUCCESS' if res['success'] else 'UNROUTED/CONGESTED'}", flush=True)
+            print(f"     Placement Time: {res['placement_time_sec']:.3f}s | Routing Time: {res['routing_time_sec']:.3f}s", flush=True)
+            print(f"     Iterations: {res['iterations']} | Routed: {res['routed_pct']:.1f}% | RR Nodes: {res['rr_nodes']:,}", flush=True)
+            print(f"     Memory: {res['mem_peak_mb']:.1f} MB (Delta: +{res['mem_delta_mb']:.1f} MB)", flush=True)
         except Exception as e:
-            print(f"     [LIMIT REACHED / ERROR]: {e}")
+            print(f"     [LIMIT REACHED / ERROR]: {e}", flush=True)
             results.append({"num_luts": b["luts"], "error": str(e), "success": False})
 
-    print("\n" + "=" * 80)
-    print("BENCHMARK SUMMARY TABLE")
-    print("=" * 80)
+    print("\n" + "=" * 80, flush=True)
+    print("BENCHMARK SUMMARY TABLE", flush=True)
+    print("=" * 80, flush=True)
     header = f"{'LUTs':>6} | {'Grid':>7} | {'RR Nodes':>10} | {'Place (s)':>10} | {'Route (s)':>10} | {'Iters':>5} | {'Routed%':>7} | {'RAM (MB)':>8}"
-    print(header)
-    print("-" * len(header))
+    print(header, flush=True)
+    print("-" * len(header), flush=True)
     for r in results:
         if r.get("success"):
-            print(f"{r['num_luts']:>6} | {r['grid']:>7} | {r['rr_nodes']:>10,} | {r['placement_time_sec']:>10.3f} | {r['routing_time_sec']:>10.3f} | {r['iterations']:>5} | {r['routed_pct']:>6.1f}% | {r['mem_peak_mb']:>8.1f}")
+            print(f"{r['num_luts']:>6} | {r['grid']:>7} | {r['rr_nodes']:>10,} | {r['placement_time_sec']:>10.3f} | {r['routing_time_sec']:>10.3f} | {r['iterations']:>5} | {r['routed_pct']:>6.1f}% | {r['mem_peak_mb']:>8.1f}", flush=True)
         else:
-            print(f"{r['num_luts']:>6} | FAILED / LIMIT: {r.get('error', 'Unrouted')}")
-    print("=" * 80)
+            print(f"{r['num_luts']:>6} | FAILED / LIMIT: {r.get('error', 'Unrouted')}", flush=True)
+    print("=" * 80, flush=True)
 
 
 if __name__ == "__main__":
