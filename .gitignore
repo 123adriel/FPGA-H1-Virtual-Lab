@@ -30,6 +30,7 @@ dist/
 
 # Logs & OS
 *.log
+*.db
 .DS_Store
 Thumbs.db
 *.swp

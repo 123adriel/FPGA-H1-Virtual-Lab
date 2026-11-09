@@ -37,6 +37,10 @@ class LUT4:
         """Returns the current 16-bit configuration mask."""
         return self._mask
 
+    @mask.setter
+    def mask(self, value: int) -> None:
+        self.set_mask(value)
+
     def set_mask(self, mask: int) -> None:
         """Sets the 16-bit configuration mask. Validates range [0x0000, 0xFFFF]."""
         if not isinstance(mask, int):

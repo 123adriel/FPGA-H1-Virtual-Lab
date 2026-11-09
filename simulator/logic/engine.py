@@ -105,11 +105,17 @@ class CircuitEngine:
             return 1
         if src in self.inputs:
             return self.inputs[src]
+        if f"{src}[0]" in self.inputs:
+            return self.inputs[f"{src}[0]"]
         if src.endswith(".out"):
             ble_name = src[:-4]
             if ble_name in self.bles:
                 return self.bles[ble_name].last_out
-        raise KeyError(f"Unknown signal source: '{src}'")
+        if src in self.bles:
+            return self.bles[src].last_out
+        if src in self.outputs:
+            return self.outputs[src]
+        return 0
 
     def step(self, input_values: Dict[str, int], clk: int = 0, srst: int = 0, arst: int = 0) -> Dict[str, int]:
         """
@@ -140,3 +146,15 @@ class CircuitEngine:
             self.outputs[out_name] = self._resolve_signal(src)
 
         return dict(self.outputs)
+
+    def reset(self) -> None:
+        """Resets all BLE registers and outputs to 0."""
+        for inp in self.inputs:
+            self.inputs[inp] = 0
+        for out in self.outputs:
+            self.outputs[out] = 0
+        for ble in self.bles.values():
+            ble.last_out = 0
+            ble.last_cout = 0
+            if ble.dff:
+                ble.dff.q = 0
