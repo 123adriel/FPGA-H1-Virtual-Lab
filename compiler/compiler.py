@@ -23,6 +23,7 @@ from simulator.routing.grid_circuit import GridCircuit
 from simulator.routing.placement import PlacementEngine
 from simulator.routing.pathfinder import Net
 from compiler.bitstream.bitstream_codec import BitstreamCodec
+from compiler.device_profile import get_profile, validate_circuit_against_profile, DeviceProfile
 
 
 class CompilationResult:
@@ -42,6 +43,9 @@ class CompilationResult:
         self.bitstream: bytes = b""
         self.routing_report: Dict[str, Any] = {}
         self.errors: List[str] = []
+        self.warnings: List[str] = []
+        self.device_profile: str = "FPGA-H1-GW1NR9"
+        self.profile_validation: Dict[str, Any] = {}
 
     def get_summary(self) -> Dict[str, Any]:
         return {
@@ -54,6 +58,9 @@ class CompilationResult:
             "outputs": self.outputs,
             "clocks": self.clocks,
             "bitstream_bytes": len(self.bitstream),
+            "profile": self.device_profile,
+            "warnings": self.warnings,
+            "profile_validation": self.profile_validation,
             "routed": self.routing_report.get("routed_nets_pct", 0.0) if self.routing_report else "N/A"
         }
 
@@ -61,12 +68,14 @@ class CompilationResult:
 class H1LCompiler:
     """End-to-end compiler for H1L hardware description language."""
 
-    def __init__(self, run_pnr: bool = True, channel_width: int = 8):
+    def __init__(self, run_pnr: bool = True, channel_width: int = 8, device_profile: str = "FPGA-H1-GW1NR9"):
         self.run_pnr = run_pnr
         self.channel_width = channel_width
+        self.device_profile = device_profile
 
     def compile(self, source: str) -> CompilationResult:
         result = CompilationResult()
+        result.device_profile = self.device_profile
 
         try:
             # 1. Lexical Analysis
@@ -150,6 +159,27 @@ class H1LCompiler:
             result.lut_count = len(mapper.mapped_luts)
             result.dff_count = len(mapper.mapped_dffs)
 
+            # Profile validation & physical constraints check
+            prof = get_profile(self.device_profile)
+            issues = validate_circuit_against_profile(
+                prof, result.lut_count, result.dff_count, len(result.inputs), len(result.outputs)
+            )
+            result.profile_validation = {
+                "profile": prof.name,
+                "category": prof.category,
+                "valid": len(issues) == 0,
+                "issues": issues,
+                "capacity": {
+                    "lut_max": prof.lut_count,
+                    "dff_max": prof.dff_count,
+                    "clb_max": prof.clb_count,
+                    "inputs_max": prof.max_inputs,
+                    "outputs_max": prof.max_outputs,
+                }
+            }
+            if issues:
+                result.warnings.extend(issues)
+
             # 5. Pack into CircuitEngine for Functional Simulation
             engine = CircuitEngine(name=result.device_name)
             for inp in result.inputs:
@@ -197,8 +227,14 @@ class H1LCompiler:
             # 6. Physical Placement and Routing (Island-Style Grid)
             if self.run_pnr and result.lut_count > 0:
                 result.clb_count = max(1, math.ceil(result.lut_count / 4))
-                grid_side = max(1, math.ceil(math.sqrt(result.clb_count)))
-                grid_circuit = GridCircuit(grid_w=grid_side, grid_h=grid_side, channel_width=self.channel_width)
+                prof = get_profile(self.device_profile)
+                if prof.category == "physical" and result.clb_count <= prof.clb_count:
+                    grid_side = prof.grid_w
+                    chan_w = prof.channel_width
+                else:
+                    grid_side = max(1, math.ceil(math.sqrt(result.clb_count)))
+                    chan_w = self.channel_width
+                grid_circuit = GridCircuit(grid_w=grid_side, grid_h=grid_side, channel_width=chan_w)
 
                 # Configure BLEs into CLBs
                 for idx, lut in enumerate(mapper.mapped_luts):

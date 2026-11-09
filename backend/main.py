@@ -16,6 +16,7 @@ from backend.database import (
     save_compilation, get_latest_benchmarks, get_db_connection
 )
 from backend.pipeline import PipelineExecution
+from compiler.device_profile import PROFILES, get_profile
 from backend.simulation_manager import simulation_manager
 from backend.benchmark_runner import run_all_scalability_benchmarks, run_benchmark_for_scale
 from fastapi.staticfiles import StaticFiles
@@ -54,6 +55,7 @@ class CompileRequest(BaseModel):
     source_code: str
     project_id: Optional[str] = None
     channel_width: Optional[int] = 8
+    device_profile: Optional[str] = "FPGA-H1-GW1NR9"
 
 
 class StepRequest(BaseModel):
@@ -70,6 +72,11 @@ class LutUpdateRequest(BaseModel):
 
 
 # REST Endpoints
+@app.get("/api/profiles")
+def get_device_profiles():
+    return {k: v.__dict__ for k, v in PROFILES.items()}
+
+
 @app.get("/api/health")
 def get_health():
     return {
@@ -123,7 +130,7 @@ def delete_project_endpoint(project_id: str):
 
 @app.post("/api/compile")
 def compile_circuit_endpoint(req: CompileRequest):
-    pipeline = PipelineExecution(channel_width=req.channel_width or 8)
+    pipeline = PipelineExecution(channel_width=req.channel_width or 8, device_profile=req.device_profile or "FPGA-H1-GW1NR9")
     res = pipeline.run(req.source_code)
 
     comp_id = None

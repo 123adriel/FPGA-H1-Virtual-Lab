@@ -18,13 +18,15 @@ from simulator.logic.engine import CircuitEngine
 from simulator.routing.grid_circuit import GridCircuit
 from simulator.routing.pathfinder import Net
 from compiler.bitstream.bitstream_codec import BitstreamCodec
+from compiler.device_profile import get_profile, validate_circuit_against_profile, DeviceProfile
 
 
 class PipelineExecution:
     """Executes H1L compilation while capturing rich stage metrics."""
 
-    def __init__(self, channel_width: int = 8):
+    def __init__(self, channel_width: int = 8, device_profile: str = "FPGA-H1-GW1NR9"):
         self.channel_width = channel_width
+        self.device_profile = device_profile
 
     def run(self, source_code: str) -> Dict[str, Any]:
         stages = {}
@@ -264,11 +266,17 @@ class PipelineExecution:
         t0 = time.perf_counter()
         lut_count = len(mapper.mapped_luts)
         clb_count = max(1, math.ceil(lut_count / 4)) if lut_count > 0 else 1
-        grid_side = max(1, math.ceil(math.sqrt(clb_count)))
+        prof = get_profile(self.device_profile)
+        if prof.category == "physical" and clb_count <= prof.clb_count:
+            grid_side = prof.grid_w
+            chan_w = prof.channel_width
+        else:
+            grid_side = max(1, math.ceil(math.sqrt(clb_count)))
+            chan_w = self.channel_width
         clb_matrix_info = []
 
         try:
-            grid_circuit = GridCircuit(grid_w=grid_side, grid_h=grid_side, channel_width=self.channel_width)
+            grid_circuit = GridCircuit(grid_w=grid_side, grid_h=grid_side, channel_width=chan_w)
             for idx, lut in enumerate(mapper.mapped_luts):
                 clb_idx = idx // 4
                 ble_idx = idx % 4
@@ -417,6 +425,20 @@ class PipelineExecution:
                 "clbs_used": clb_count,
                 "io_pins": len(inputs_list) + len(outputs_list) + len(clocks_list),
                 "bitstream_bytes": len(bitstream_bytes)
+            },
+            "device_profile": self.device_profile,
+            "profile_validation": {
+                "profile": prof.name,
+                "category": prof.category,
+                "valid": len(validate_circuit_against_profile(prof, len(mapper.mapped_luts), len(mapper.mapped_dffs), len(inputs_list), len(outputs_list))) == 0,
+                "issues": validate_circuit_against_profile(prof, len(mapper.mapped_luts), len(mapper.mapped_dffs), len(inputs_list), len(outputs_list)),
+                "capacity": {
+                    "lut_max": prof.lut_count,
+                    "dff_max": prof.dff_count,
+                    "clb_max": prof.clb_count,
+                    "inputs_max": prof.max_inputs,
+                    "outputs_max": prof.max_outputs,
+                }
             },
             "stages": stages,
             "placement": {
