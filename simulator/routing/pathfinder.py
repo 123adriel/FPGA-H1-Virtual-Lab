@@ -179,10 +179,18 @@ class PathfinderRouter:
                             "success": False,
                             "iterations": iteration,
                             "time_sec": t1 - t0,
+                            "time_total_sec": t1 - t0,
                             "reason": f"Pathfinder: Cannot find valid path for net '{net.name}' to sink {sink_nid}",
                             "failed_net": net.name,
-                            "routed_nets_pct": 0.0,
-                            "max_overuse": -1
+                            "total_nets": len(nets),
+                            "nets_requested": len(nets),
+                            "nets_routed": 0,
+                            "nets_failed": len(nets),
+                            "illegal_connections": 0,
+                            "max_congestion": -1,
+                            "max_overuse": -1,
+                            "channel_utilization_pct": 0.0,
+                            "routed_nets_pct": 0.0
                         }
 
                     self._add_path_to_net(net, path)
@@ -221,14 +229,26 @@ class PathfinderRouter:
 
         # Calculate statistics
         total_wire_segments = sum(len(net.routed_tree) for net in nets)
+        total_chan_nodes = sum(1 for n in self.graph.nodes.values() if n.node_type in [NodeType.CHANX, NodeType.CHANY])
+        used_chan_nodes = sum(1 for n in self.graph.nodes.values() if n.node_type in [NodeType.CHANX, NodeType.CHANY] and n.occ > 0)
+        chan_util = round((used_chan_nodes / max(1, total_chan_nodes)) * 100.0, 2)
+        nets_routed = len(nets) if success else max(0, len(nets) - overused_nodes)
+        nets_failed = len(nets) - nets_routed
 
         return {
             "success": success,
             "iterations": iteration,
             "time_sec": elapsed,
+            "time_total_sec": elapsed,
             "max_overuse": max_overuse,
+            "max_congestion": max_overuse,
             "total_nets": len(nets),
-            "routed_nets_pct": 100.0 if success else (100.0 * (len(nets) - overused_nodes) / max(1, len(nets))),
+            "nets_requested": len(nets),
+            "nets_routed": nets_routed,
+            "nets_failed": nets_failed,
+            "illegal_connections": overused_nodes,
+            "routed_nets_pct": 100.0 if success else round(100.0 * nets_routed / max(1, len(nets)), 2),
+            "channel_utilization_pct": chan_util,
             "total_segments_used": total_wire_segments,
             "final_pres_fac": pres_fac
         }

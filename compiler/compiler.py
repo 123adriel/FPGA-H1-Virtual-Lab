@@ -188,6 +188,8 @@ class H1LCompiler:
 
                 if lut.output_wire in result.outputs:
                     engine.connect_output(lut.output_wire, f"{ble.name}.out")
+                if dff_target and dff_target.q_wire in result.outputs:
+                    engine.connect_output(dff_target.q_wire, f"{ble.name}.out")
 
             engine.compile()
             result.circuit_engine = engine
@@ -231,8 +233,24 @@ class H1LCompiler:
                 if nets:
                     route_res = grid_circuit.route_netlist(nets)
                     result.routing_report = route_res
+                    if not route_res.get("success", False):
+                        result.success = False
+                        failed_reason = route_res.get("reason", f"Routing failed: {route_res.get('nets_failed', 1)} unrouted nets")
+                        result.errors.append(failed_reason)
+                        return result
                 else:
-                    result.routing_report = {"success": True, "routed_nets_pct": 100.0, "iterations": 1}
+                    result.routing_report = {
+                        "success": True,
+                        "routed_nets_pct": 100.0,
+                        "iterations": 1,
+                        "nets_requested": 0,
+                        "nets_routed": 0,
+                        "nets_failed": 0,
+                        "illegal_connections": 0,
+                        "max_congestion": 0,
+                        "channel_utilization_pct": 0.0,
+                        "time_total_sec": 0.0
+                    }
 
                 # 7. Generate H1BS Bitstream
                 bitstream_bytes = grid_circuit.to_bitstream(metadata={"device": result.device_name})

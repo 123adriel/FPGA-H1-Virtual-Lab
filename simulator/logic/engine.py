@@ -130,6 +130,12 @@ class CircuitEngine:
             if k in self.inputs:
                 self.inputs[k] = v & 1
 
+        # Auto-detect clock, reset & enable from input_values if not explicitly passed
+        active_clk = clk if clk != 0 else (input_values.get("CLK", input_values.get("clk", 0)) & 1)
+        active_srst = srst if srst != 0 else (input_values.get("RST", input_values.get("srst", input_values.get("RESET", 0))) & 1)
+        active_arst = arst if arst != 0 else (input_values.get("ARST", input_values.get("arst", 0)) & 1)
+        active_ce = input_values.get("CE", input_values.get("ce", 1)) & 1
+
         # Evaluate BLEs in topological order
         for ble_name in self.eval_order:
             ble = self.bles[ble_name]
@@ -139,7 +145,7 @@ class CircuitEngine:
             i2 = self._resolve_signal(conns[2])
             i3 = self._resolve_signal(conns[3])
 
-            ble.eval(i0=i0, i1=i1, i2=i2, i3=i3, clk=clk, srst=srst, arst=arst)
+            ble.eval(i0=i0, i1=i1, i2=i2, i3=i3, clk=active_clk, ce=active_ce, srst=active_srst, arst=active_arst)
 
         # Update circuit outputs
         for out_name, src in self.output_connections.items():

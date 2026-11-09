@@ -241,6 +241,8 @@ class PipelineExecution:
                 circuit_engine.add_ble(ble, conns)
                 if lut.output_wire in outputs_list:
                     circuit_engine.connect_output(lut.output_wire, f"{ble.name}.out")
+                if dff_target and dff_target.q_wire in outputs_list:
+                    circuit_engine.connect_output(dff_target.q_wire, f"{ble.name}.out")
 
             circuit_engine.compile()
             t1 = time.perf_counter()
@@ -342,14 +344,22 @@ class PipelineExecution:
                 routing_report = {"success": True, "routed_nets_pct": 100.0, "iterations": 1, "total_segments_used": 0}
 
             t1 = time.perf_counter()
+            route_ok = routing_report.get("success", False)
             stages["routing"] = {
                 "name": "Pathfinder Routing (Wilton Fs=3)",
                 "duration_ms": round((t1 - t0) * 1000, 3),
-                "status": "success" if routing_report.get("success", False) else "warning",
+                "status": "success" if route_ok else "error",
                 "channel_width": self.channel_width,
                 "routed_nets_pct": routing_report.get("routed_nets_pct", 100.0),
                 "iterations": routing_report.get("iterations", 1),
                 "total_segments_used": routing_report.get("total_segments_used", 0),
+                "nets_requested": routing_report.get("nets_requested", len(nets)),
+                "nets_routed": routing_report.get("nets_routed", len(nets) if route_ok else 0),
+                "nets_failed": routing_report.get("nets_failed", 0 if route_ok else len(nets)),
+                "illegal_connections": routing_report.get("illegal_connections", 0),
+                "max_congestion": routing_report.get("max_congestion", 0),
+                "channel_utilization_pct": routing_report.get("channel_utilization_pct", 0.0),
+                "time_total_sec": routing_report.get("time_total_sec", (t1 - t0)),
                 "nets": [
                     {
                         "name": net.name,
@@ -360,6 +370,10 @@ class PipelineExecution:
                     for net in nets
                 ]
             }
+            if not route_ok:
+                fail_msg = routing_report.get("reason", f"Pathfinder routing failed: {routing_report.get('nets_failed', 1)} nets unrouted")
+                stages["routing"]["error"] = fail_msg
+                return self._build_failure_response(stages, fail_msg, (time.perf_counter() - t_total_start) * 1000)
         except Exception as e:
             t1 = time.perf_counter()
             stages["routing"] = {"name": "Pathfinder Routing (Wilton Fs=3)", "duration_ms": round((t1 - t0) * 1000, 3), "status": "error", "error": str(e)}
